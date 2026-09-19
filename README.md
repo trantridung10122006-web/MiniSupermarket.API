@@ -1,3 +1,3 @@
-Họ và tên: Võ Anh Kiệt
+Họ và tên: Trần Trí Dũng
 Lớp: CCQ2411C
-MASV: 2124110089
+MASV: 2124110076
