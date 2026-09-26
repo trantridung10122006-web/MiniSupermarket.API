@@ -20,6 +20,12 @@ namespace MiniSupermarket.WinForms
             BaseAddress = new Uri("https://localhost:7123/api/")  // nhớ chỉnh port phù hợp
         };
 
+        public static void SetAuthToken(string token)
+        {
+            _client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+
         // Hàm gọi API đăng nhập lấy Token
         public static async Task<bool> LoginAsync(string username, string password)
         {
@@ -36,6 +42,8 @@ namespace MiniSupermarket.WinForms
             }
             return false;
         }
+
+
 
         // Hàm gọi API lấy dữ liệu có gắn kèm Bearer Token bảo mật
         public static async Task<string> GetDataWithTokenAsync(string endpoint)

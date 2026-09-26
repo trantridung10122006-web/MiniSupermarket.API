@@ -115,7 +115,7 @@ namespace MiniSupermarket.API.Controllers
 
         // 8. Kiểm tra quyền chung cho nhân viên (Cả Admin và Cashier đều gọi được)
         [HttpGet("staff-pos")]
-        [Authorize(Roles = "Admin,Cashier")]
+        
         public IActionResult GetStaffPos()
         {
             return Ok(new { message = "Màn hình POS Thu ngân sẵn sàng phục vụ bán hàng." });

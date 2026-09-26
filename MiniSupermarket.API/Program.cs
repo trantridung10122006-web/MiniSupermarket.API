@@ -13,16 +13,17 @@ builder.Services.AddAuthentication(options => {
 .AddJwtBearer(options => {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
+        ValidateIssuer = false,
+        ValidateAudience = false,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        
 
-        // BỔ SUNG DÒNG NÀY ĐỂ MAPPING ĐÚNG ROLE TỪ TOKEN:
-        RoleClaimType = "role" 
+        // Đảm bảo dùng đúng tiền tố "JwtSettings:" giống như Secret
+        ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+        ValidAudience = builder.Configuration["JwtSettings:Audience"],
+
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        RoleClaimType = "role"
     };
 });
 
