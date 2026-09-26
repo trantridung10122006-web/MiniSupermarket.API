@@ -110,31 +110,18 @@ namespace MiniSupermarket.WinForms
         // HIỂN THỊ DANH SÁCH
         // =====================================================
 
-        private void DisplayCategories(
-            List<Category> list)
+        private void DisplayCategories(List<Category> list)
         {
-            dgvCategories.Rows.Clear();
+            // Gán lại DataSource để làm mới dữ liệu
+            dgvCategories.DataSource = null;
+            dgvCategories.DataSource = list;
 
-            foreach (Category category in list)
-            {
-                int rowIndex =
-                    dgvCategories.Rows.Add();
+            // Tùy chỉnh tiêu đề cột hiển thị
+            if (dgvCategories.Columns["ID"] != null) dgvCategories.Columns["ID"].HeaderText = "Mã Nhóm";
+            if (dgvCategories.Columns["Name"] != null) dgvCategories.Columns["Name"].HeaderText = "Tên Nhóm Hàng";
+            if (dgvCategories.Columns["Description"] != null) dgvCategories.Columns["Description"].HeaderText = "Mô Tả";
 
-                DataGridViewRow row =
-                    dgvCategories.Rows[rowIndex];
-
-                row.Cells[0].Value =
-                    category.ID;
-
-                row.Cells[1].Value =
-                    category.Name;
-
-                row.Cells[2].Value =
-                    category.Description;
-            }
-
-            lblStatus.Text =
-                "Có " + list.Count + " nhóm hàng";
+            lblStatus.Text = "Có " + list.Count + " nhóm hàng";
         }
 
 
