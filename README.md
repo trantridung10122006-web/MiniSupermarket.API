@@ -362,7 +362,7 @@ WinForms Form
 	→ kết quả trả ngược về WinForms
 ```
 
-Khi giảng viên hỏi một chức năng, hãy trả lời theo ba ý: **request đi từ đâu**, **method nào xử lý**, và **kết quả được trả về hoặc lưu ở đâu**.
+
 
 ### 12.9. Thứ tự demo đề xuất
 
