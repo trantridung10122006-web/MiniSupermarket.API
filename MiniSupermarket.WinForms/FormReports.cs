@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -12,9 +14,26 @@ using System.Windows.Forms;
 
 namespace MiniSupermarket.WinForms
 {
+    internal class DoubleBufferedPanel : Panel
+    {
+        public DoubleBufferedPanel()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            UpdateStyles();
+        }
+    }
+
     public partial class FormReports : Form
     {
         private ReportSummaryDto _currentReport;
+        private Label _lblNewCustomers;
+        private Label _lblLowStock;
+        private ListBox _lstBestSellers;
+        private readonly List<RevenueTrendDto> _revenueTrend = new List<RevenueTrendDto>();
+        private readonly List<CategoryRevenueDto> _categoryRevenue = new List<CategoryRevenueDto>();
+        private Panel _trendPanel;
+        private Panel _categoryPanel;
 
         public FormReports()
         {
@@ -22,11 +41,42 @@ namespace MiniSupermarket.WinForms
             SetupGrid();
             WireEvents();
             WinFormsTheme.Apply(this);
+            ApplyCustomStyles();
+            BuildRevenueDashboard();
         }
 
         // =====================================================
         // 1. CẤU HÌNH BẢNG & SỰ KIỆN
         // =====================================================
+        private void ApplyCustomStyles()
+        {
+            _lblNewCustomers = lblProducts;
+            _lblLowStock = lblLowStock;
+            _lstBestSellers = lstBestSellers;
+
+            // Đặt màu phân biệt rõ ràng cho các nút tác vụ (không bị theme ghi đè)
+            btnViewReport.BackColor = Color.FromArgb(0, 121, 107);
+            btnRefresh.BackColor = Color.FromArgb(96, 125, 139);
+            btnExport.BackColor = Color.FromArgb(46, 125, 50);
+
+            // Màu tiêu đề bảng đồng bộ nhận diện thương hiệu
+            dgvReports.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 77, 64);
+            dgvReports.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+
+            // Đăng ký vẽ đẹp mắt cho Top bán chạy
+            lstBestSellers.DrawItem -= LstBestSellers_DrawItem;
+            lstBestSellers.DrawItem += LstBestSellers_DrawItem;
+        }
+
+        private void BuildRevenueDashboard()
+        {
+            _trendPanel = pnlTrendChart;
+            _categoryPanel = pnlCategoryChart;
+
+            _trendPanel.Paint += PaintTrendChart;
+            _categoryPanel.Paint += PaintCategoryChart;
+        }
+
         private void SetupGrid()
         {
             dgvReports.AutoGenerateColumns = false;
@@ -36,18 +86,18 @@ namespace MiniSupermarket.WinForms
             dgvReports.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dgvReports.MultiSelect = false;
             dgvReports.BackgroundColor = Color.White;
-            dgvReports.BorderStyle = BorderStyle.FixedSingle;
+            dgvReports.BorderStyle = BorderStyle.None;
             dgvReports.RowHeadersVisible = false;
             dgvReports.EnableHeadersVisualStyles = false;
-            dgvReports.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(35, 75, 130);
+            dgvReports.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(0, 77, 64);
             dgvReports.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
-            dgvReports.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            dgvReports.ColumnHeadersHeight = 38;
-            dgvReports.RowTemplate.Height = 32;
-            dgvReports.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 248, 252);
+            dgvReports.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            dgvReports.ColumnHeadersHeight = 34;
+            dgvReports.RowTemplate.Height = 30;
+            dgvReports.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
             dgvReports.DefaultCellStyle.SelectionBackColor = Color.FromArgb(178, 223, 219);
             dgvReports.DefaultCellStyle.SelectionForeColor = Color.Black;
-            dgvReports.GridColor = Color.FromArgb(224, 224, 224);
+            dgvReports.GridColor = Color.FromArgb(226, 232, 240);
 
             dgvReports.Columns.Clear();
 
@@ -55,7 +105,11 @@ namespace MiniSupermarket.WinForms
             {
                 DataPropertyName = nameof(ReportOrderDto.OrderId),
                 HeaderText = "Mã đơn",
-                Width = 85
+                Width = 85,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Alignment = DataGridViewContentAlignment.MiddleCenter
+                }
             });
 
             dgvReports.Columns.Add(new DataGridViewTextBoxColumn
@@ -65,6 +119,7 @@ namespace MiniSupermarket.WinForms
                 Width = 145,
                 DefaultCellStyle = new DataGridViewCellStyle
                 {
+                    Alignment = DataGridViewContentAlignment.MiddleCenter,
                     Format = "dd/MM/yyyy HH:mm"
                 }
             });
@@ -73,21 +128,22 @@ namespace MiniSupermarket.WinForms
             {
                 DataPropertyName = nameof(ReportOrderDto.CustomerName),
                 HeaderText = "Khách hàng",
-                Width = 180
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                MinimumWidth = 180
             });
 
             dgvReports.Columns.Add(new DataGridViewTextBoxColumn
             {
                 DataPropertyName = nameof(ReportOrderDto.CashierName),
                 HeaderText = "Thu ngân",
-                Width = 150
+                Width = 160
             });
 
             dgvReports.Columns.Add(new DataGridViewTextBoxColumn
             {
                 DataPropertyName = nameof(ReportOrderDto.TotalItems),
                 HeaderText = "Số lượng SP",
-                Width = 110,
+                Width = 115,
                 DefaultCellStyle = new DataGridViewCellStyle
                 {
                     Alignment = DataGridViewContentAlignment.MiddleRight,
@@ -99,12 +155,12 @@ namespace MiniSupermarket.WinForms
             {
                 DataPropertyName = nameof(ReportOrderDto.TotalAmount),
                 HeaderText = "Tổng tiền",
-                Width = 135,
+                Width = 140,
                 DefaultCellStyle = new DataGridViewCellStyle
                 {
                     Alignment = DataGridViewContentAlignment.MiddleRight,
                     Format = "N0",
-                    Font = new Font("Segoe UI", 10F, FontStyle.Bold)
+                    Font = new Font("Segoe UI", 9.5F, FontStyle.Bold)
                 }
             });
 
@@ -112,15 +168,19 @@ namespace MiniSupermarket.WinForms
             {
                 DataPropertyName = nameof(ReportOrderDto.Status),
                 HeaderText = "Trạng thái",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                Width = 120,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Alignment = DataGridViewContentAlignment.MiddleCenter
+                }
             });
         }
 
         private void WireEvents()
         {
             this.Load += FormReports_Load;
-            btnViewReport.Click += async (s, e) => await LoadReportsAsync();
-            btnRefresh.Click += async (s, e) => await ResetAndLoadAsync();
+            btnViewReport.Click += async (s, e) => { await LoadReportsAsync(); await LoadDashboardExtrasAsync(); };
+            btnRefresh.Click += async (s, e) => { await ResetAndLoadAsync(); await LoadDashboardExtrasAsync(); };
             btnExport.Click += (s, e) => ExportReport();
         }
 
@@ -129,6 +189,55 @@ namespace MiniSupermarket.WinForms
             dtpFromDate.Value = DateTime.Today.AddDays(-30);
             dtpToDate.Value = DateTime.Today;
             await LoadReportsAsync();
+            await LoadDashboardExtrasAsync();
+        }
+
+        private async Task LoadDashboardExtrasAsync()
+        {
+            try
+            {
+                var dashboard = await ApiClientService.Client.GetFromJsonAsync<DashboardSummaryDto>("reports/dashboard-summary");
+                if (dashboard != null)
+                {
+                    // Cập nhật số khách mới và mặt hàng sắp hết từ dashboard
+                    _lblNewCustomers.Text = dashboard.NewCustomers.ToString("N0");
+                    _lblLowStock.Text = dashboard.LowStockProducts.ToString("N0");
+                }
+
+                string from = dtpFromDate.Value.ToString("yyyy-MM-dd");
+                string to = dtpToDate.Value.ToString("yyyy-MM-dd");
+                var bestSellers = await ApiClientService.Client.GetFromJsonAsync<List<BestSellerDto>>($"reports/best-sellers?fromDate={from}&toDate={to}");
+                _lstBestSellers.Items.Clear();
+                if (bestSellers != null && bestSellers.Count > 0)
+                {
+                    int rank = 1;
+                    foreach (var item in bestSellers)
+                    {
+                        _lstBestSellers.Items.Add($"  {rank++}. {item.ProductName}  —  Đã bán: {item.Quantity:N0} sản phẩm  |  Doanh thu: {item.Revenue:N0} đ");
+                    }
+                }
+                else
+                {
+                    _lstBestSellers.Items.Add("  (Chưa có dữ liệu sản phẩm bán chạy trong khoảng thời gian đã chọn)");
+                }
+
+                _revenueTrend.Clear();
+                var trend = await ApiClientService.Client.GetFromJsonAsync<List<RevenueTrendDto>>(
+                    $"reports/revenue-trend?fromDate={from}&toDate={to}");
+                if (trend != null) _revenueTrend.AddRange(trend);
+
+                _categoryRevenue.Clear();
+                var categories = await ApiClientService.Client.GetFromJsonAsync<List<CategoryRevenueDto>>(
+                    $"reports/category-revenue?fromDate={from}&toDate={to}");
+                if (categories != null) _categoryRevenue.AddRange(categories);
+
+                _trendPanel?.Invalidate();
+                _categoryPanel?.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                lblStatus.Text = "Không tải được KPI/Top sản phẩm: " + ex.Message;
+            }
         }
 
         private async Task ResetAndLoadAsync()
@@ -136,6 +245,84 @@ namespace MiniSupermarket.WinForms
             dtpFromDate.Value = DateTime.Today.AddDays(-30);
             dtpToDate.Value = DateTime.Today;
             await LoadReportsAsync();
+        }
+
+        private void PaintTrendChart(object sender, PaintEventArgs e)
+        {
+            ChartPainter.DrawRevenueTrend(e.Graphics, _trendPanel.ClientRectangle, _revenueTrend);
+        }
+
+        private void PaintCategoryChart(object sender, PaintEventArgs e)
+        {
+            ChartPainter.DrawCategoryShare(e.Graphics, _categoryPanel.ClientRectangle, _categoryRevenue);
+        }
+
+        private void LstBestSellers_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0 || e.Index >= lstBestSellers.Items.Count) return;
+
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            var bounds = e.Bounds;
+            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            Color bg = isSelected ? Color.FromArgb(224, 242, 254) : (e.Index % 2 == 0 ? Color.White : Color.FromArgb(248, 250, 252));
+            using (var b = new SolidBrush(bg))
+                g.FillRectangle(b, bounds);
+
+            string text = lstBestSellers.Items[e.Index]?.ToString() ?? "";
+            if (text.StartsWith("  (") || !text.Contains("—"))
+            {
+                using (var f = new Font("Segoe UI", 8.5F, FontStyle.Italic))
+                using (var b = new SolidBrush(Color.DimGray))
+                    g.DrawString(text, f, b, bounds.Left + 8, bounds.Top + 9);
+                return;
+            }
+
+            int rank = e.Index + 1;
+            Color badgeColor;
+            if (rank == 1) badgeColor = Color.FromArgb(245, 158, 11);     // Gold
+            else if (rank == 2) badgeColor = Color.FromArgb(148, 163, 184); // Silver
+            else if (rank == 3) badgeColor = Color.FromArgb(217, 119, 6);   // Bronze
+            else badgeColor = Color.FromArgb(203, 213, 225);                // Slate
+
+            // Vẽ badge tròn số thứ tự
+            var badgeRect = new Rectangle(bounds.Left + 8, bounds.Top + (bounds.Height - 20) / 2, 20, 20);
+            using (var b = new SolidBrush(badgeColor))
+                g.FillEllipse(b, badgeRect);
+
+            using (var f = new Font("Segoe UI", 8F, FontStyle.Bold))
+            {
+                string rankStr = rank.ToString();
+                var size = g.MeasureString(rankStr, f);
+                g.DrawString(rankStr, f, rank <= 3 ? Brushes.White : Brushes.Black,
+                    badgeRect.X + (badgeRect.Width - size.Width) / 2 + 0.5f,
+                    badgeRect.Y + (badgeRect.Height - size.Height) / 2);
+            }
+
+            // Tách tên và doanh thu
+            string[] parts = text.Split(new[] { "—" }, StringSplitOptions.None);
+            string title = parts[0].Trim();
+            if (title.StartsWith($"{rank}.")) title = title.Substring($"{rank}.".Length).Trim();
+            else if (title.StartsWith($"  {rank}.")) title = title.Substring($"  {rank}.".Length).Trim();
+
+            string sub = parts.Length > 1 ? parts[1].Trim() : "";
+
+            using (var fontTitle = new Font("Segoe UI", 8.5F, FontStyle.Bold))
+            using (var fontSub = new Font("Segoe UI", 8F))
+            using (var brushTitle = new SolidBrush(Color.FromArgb(30, 41, 59)))
+            using (var brushSub = new SolidBrush(Color.FromArgb(100, 116, 139)))
+            {
+                int textLeft = badgeRect.Right + 8;
+                int textW = bounds.Right - textLeft - 8;
+                g.DrawString(title, fontTitle, brushTitle, new RectangleF(textLeft, bounds.Top + 2, textW, 16));
+                g.DrawString(sub, fontSub, brushSub, new RectangleF(textLeft, bounds.Top + 18, textW, 14));
+            }
+
+            // Đường phân cách mờ ở đáy
+            using (var pen = new Pen(Color.FromArgb(241, 245, 249)))
+                g.DrawLine(pen, bounds.Left + 8, bounds.Bottom - 1, bounds.Right - 8, bounds.Bottom - 1);
         }
 
         // =====================================================
@@ -179,16 +366,17 @@ namespace MiniSupermarket.WinForms
 
                     lblRevenue.Text = $"{summary.TotalRevenue:N0} đ";
                     lblOrders.Text = summary.TotalOrders.ToString("N0");
-                    lblProducts.Text = summary.TotalProducts.ToString("N0");
 
                     dgvReports.DataSource = summary.RecentOrders ?? new List<ReportOrderDto>();
 
+                    lblGridSummary.Text = $"Tìm thấy {summary.TotalOrders:N0} hóa đơn trong kỳ lọc";
                     lblStatus.Text = $"Cập nhật lúc: {DateTime.Now:HH:mm:ss} | Tìm thấy {summary.TotalOrders:N0} hóa đơn | Doanh thu: {summary.TotalRevenue:N0} đ";
                     lblStatus.ForeColor = Color.DimGray;
                 }
                 else
                 {
                     lblStatus.Text = "Không có dữ liệu báo cáo trong khoảng thời gian này.";
+                    lblGridSummary.Text = "0 hóa đơn";
                 }
             }
             catch (HttpRequestException ex)
@@ -330,7 +518,6 @@ namespace MiniSupermarket.WinForms
 
         private void ExportToHtmlExcel(string filePath)
         {
-            // Tạo bảng HTML mở được trực tiếp trên Excel có định dạng đẹp mắt
             var sb = new StringBuilder();
             sb.AppendLine("<html xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"urn:schemas-microsoft-com:office:excel\" xmlns=\"http://www.w3.org/TR/REC-html40\">");
             sb.AppendLine("<head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"></head>");
@@ -395,5 +582,223 @@ namespace MiniSupermarket.WinForms
         public int TotalItems { get; set; }
         public decimal TotalAmount { get; set; }
         public string Status { get; set; } = string.Empty;
+    }
+
+    public class DashboardSummaryDto
+    {
+        public decimal TodayRevenue { get; set; }
+        public int TotalOrders { get; set; }
+        public int NewCustomers { get; set; }
+        public int LowStockProducts { get; set; }
+    }
+
+    public class BestSellerDto
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public class RevenueTrendDto
+    {
+        public DateTime Date { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public class CategoryRevenueDto
+    {
+        public int CategoryId { get; set; }
+        public string CategoryName { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+    }
+
+    internal static class ChartPainter
+    {
+        private static readonly Color[] Colors =
+        {
+            Color.FromArgb(13, 148, 136),  // Teal
+            Color.FromArgb(37, 99, 235),   // Blue
+            Color.FromArgb(245, 158, 11),  // Amber
+            Color.FromArgb(139, 92, 246),  // Purple
+            Color.FromArgb(239, 68, 68),   // Red
+            Color.FromArgb(6, 182, 212)    // Cyan
+        };
+
+        public static void DrawRevenueTrend(Graphics g, Rectangle bounds, List<RevenueTrendDto> data)
+        {
+            g.Clear(Color.White);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            using (var titleFont = new Font("Segoe UI", 9F, FontStyle.Bold))
+            using (var subFont = new Font("Segoe UI", 8F))
+            using (var axisPen = new Pen(Color.FromArgb(203, 213, 225), 1))
+            using (var gridPen = new Pen(Color.FromArgb(241, 245, 249), 1) { DashStyle = DashStyle.Dash })
+            using (var barBrush = new SolidBrush(Color.FromArgb(0, 137, 123)))
+            using (var titleBrush = new SolidBrush(Color.FromArgb(30, 41, 59)))
+            using (var labelBrush = new SolidBrush(Color.FromArgb(100, 116, 139)))
+            {
+                g.DrawString("📊  DOANH THU THEO NGÀY", titleFont, titleBrush, 10, 8);
+
+                if (data != null && data.Count > 0)
+                {
+                    decimal totalRevenue = data.Sum(x => x.Revenue);
+                    string totalStr = $"Tổng kỳ: {totalRevenue:N0} đ";
+                    var size = g.MeasureString(totalStr, subFont);
+                    g.DrawString(totalStr, subFont, labelBrush, bounds.Width - size.Width - 12, 9);
+                }
+
+                int left = 48;
+                int top = 34;
+                int right = bounds.Width - 14;
+                int bottom = bounds.Height - 26;
+                int plotW = right - left;
+                int plotH = bottom - top;
+
+                if (plotW <= 20 || plotH <= 20) return;
+
+                // Đường trục hoành đáy
+                g.DrawLine(axisPen, left, bottom, right, bottom);
+
+                if (data == null || data.Count == 0)
+                {
+                    string emptyMsg = "Chưa có dữ liệu doanh thu trong khoảng thời gian đã chọn";
+                    var sz = g.MeasureString(emptyMsg, subFont);
+                    g.DrawString(emptyMsg, subFont, labelBrush, left + (plotW - sz.Width) / 2, top + (plotH - sz.Height) / 2);
+                    return;
+                }
+
+                decimal max = data.Max(x => x.Revenue);
+                if (max <= 0) max = 1;
+
+                // 2 đường lưới tham chiếu (Max & 50%)
+                g.DrawLine(gridPen, left, top + 6, right, top + 6);
+                g.DrawString(FormatCompact(max), subFont, labelBrush, 2, top + 2);
+
+                g.DrawLine(gridPen, left, top + plotH / 2, right, top + plotH / 2);
+                g.DrawString(FormatCompact(max / 2), subFont, labelBrush, 2, top + plotH / 2 - 6);
+
+                float slot = (float)plotW / data.Count;
+                float barW = Math.Max(4, Math.Min(32, slot * 0.65f));
+                float offset = (slot - barW) / 2f;
+
+                for (int i = 0; i < data.Count; i++)
+                {
+                    float barH = (float)(data[i].Revenue / max) * (plotH - 14);
+                    if (barH < 2 && data[i].Revenue > 0) barH = 2;
+
+                    float barX = left + i * slot + offset;
+                    float barY = bottom - barH;
+
+                    var barRect = new RectangleF(barX, barY, barW, barH);
+                    g.FillRectangle(barBrush, barRect);
+
+                    // Hiển thị giá trị trên đỉnh cột nếu ít ngày
+                    if (data.Count <= 14 && data[i].Revenue > 0)
+                    {
+                        string valStr = FormatCompact(data[i].Revenue);
+                        var valSz = g.MeasureString(valStr, subFont);
+                        g.DrawString(valStr, subFont, labelBrush, barX + (barW - valSz.Width) / 2, barY - 14);
+                    }
+
+                    // Nhãn ngày
+                    if (data.Count <= 14 || i % Math.Max(1, data.Count / 8) == 0)
+                    {
+                        string dtStr = data[i].Date.ToString("dd/MM");
+                        var dtSz = g.MeasureString(dtStr, subFont);
+                        g.DrawString(dtStr, subFont, labelBrush, barX + (barW - dtSz.Width) / 2, bottom + 4);
+                    }
+                }
+            }
+        }
+
+        public static void DrawCategoryShare(Graphics g, Rectangle bounds, List<CategoryRevenueDto> data)
+        {
+            g.Clear(Color.White);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            using (var titleFont = new Font("Segoe UI", 9F, FontStyle.Bold))
+            using (var itemFont = new Font("Segoe UI", 8F))
+            using (var pctFont = new Font("Segoe UI", 8F, FontStyle.Bold))
+            using (var titleBrush = new SolidBrush(Color.FromArgb(30, 41, 59)))
+            using (var labelBrush = new SolidBrush(Color.FromArgb(71, 85, 105)))
+            {
+                g.DrawString("🍩  TỈ TRỌNG THEO NGÀNH HÀNG", titleFont, titleBrush, 10, 8);
+
+                decimal total = data == null ? 0 : data.Sum(x => x.Revenue);
+                if (total <= 0 || data == null || data.Count == 0)
+                {
+                    string emptyMsg = "Chưa có dữ liệu ngành hàng trong khoảng thời gian này";
+                    var sz = g.MeasureString(emptyMsg, itemFont);
+                    g.DrawString(emptyMsg, itemFont, labelBrush, (bounds.Width - sz.Width) / 2, (bounds.Height - sz.Height) / 2);
+                    return;
+                }
+
+                // Kích thước donut chart thích ứng
+                int diameter = Math.Min(bounds.Height - 50, Math.Min(135, bounds.Width / 2 - 20));
+                if (diameter < 60) diameter = 60;
+
+                int pieX = 14;
+                int pieY = 32 + (bounds.Height - 32 - diameter) / 2;
+                var pieRect = new Rectangle(pieX, pieY, diameter, diameter);
+
+                float startAngle = 0;
+                for (int i = 0; i < data.Count; i++)
+                {
+                    float sweep = (float)(data[i].Revenue / total * 360m);
+                    if (sweep < 1f && data[i].Revenue > 0) sweep = 1f;
+
+                    using (var brush = new SolidBrush(Colors[i % Colors.Length]))
+                    {
+                        g.FillPie(brush, pieRect, startAngle, sweep);
+                    }
+                    startAngle += sweep;
+                }
+
+                // Lỗ tròn ở giữa donut
+                int holeSize = (int)(diameter * 0.52f);
+                int holeX = pieRect.X + (diameter - holeSize) / 2;
+                int holeY = pieRect.Y + (diameter - holeSize) / 2;
+                using (var holeBrush = new SolidBrush(Color.White))
+                {
+                    g.FillEllipse(holeBrush, holeX, holeY, holeSize, holeSize);
+                }
+
+                // Danh mục chú thích bên phải
+                int legendLeft = pieRect.Right + 12;
+                int legendTop = Math.Max(32, pieY);
+                int maxItems = Math.Min(data.Count, 6);
+
+                for (int i = 0; i < maxItems; i++)
+                {
+                    int rowY = legendTop + i * 22;
+                    if (rowY + 18 > bounds.Height) break;
+
+                    using (var brush = new SolidBrush(Colors[i % Colors.Length]))
+                    {
+                        g.FillRectangle(brush, legendLeft, rowY + 3, 10, 10);
+                    }
+
+                    string name = data[i].CategoryName;
+                    if (name.Length > 15) name = name.Substring(0, 15) + "…";
+
+                    float pct = (float)(data[i].Revenue / total);
+                    g.DrawString(name, itemFont, labelBrush, legendLeft + 14, rowY);
+
+                    string pctStr = $"{pct:P0}";
+                    g.DrawString(pctStr, pctFont, Brushes.DimGray, bounds.Width - 40, rowY);
+                }
+            }
+        }
+
+        private static string FormatCompact(decimal val)
+        {
+            if (val >= 1_000_000_000) return $"{(val / 1_000_000_000m):0.#}B";
+            if (val >= 1_000_000) return $"{(val / 1_000_000m):0.#}M";
+            if (val >= 1_000) return $"{(val / 1_000m):0.#}K";
+            return val.ToString("N0");
+        }
     }
 }

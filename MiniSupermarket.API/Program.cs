@@ -12,8 +12,11 @@ var builder = WebApplication.CreateBuilder(args);
 // JWT Authentication
 // =========================
 
-var jwtSecret = builder.Configuration["JwtSettings:Secret"]
-    ?? "SupermarketSecretKeyDoAnMonHoc2026SecureString!!";
+var jwtSecret = builder.Configuration["JwtSettings:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException("JwtSettings:Secret must be configured.");
+}
 
 builder.Services
     .AddAuthentication(options =>
@@ -34,8 +37,10 @@ builder.Services
                 Encoding.UTF8.GetBytes(jwtSecret)
             ),
 
-            ValidateIssuer = false,
-            ValidateAudience = false
+             ValidateIssuer = false,
+             ValidateAudience = false,
+             ValidateLifetime = true,
+             ClockSkew = TimeSpan.Zero
         };
     });
 
@@ -116,6 +121,32 @@ using (var scope = app.Services.CreateScope())
     try
     {
         db.Database.Migrate();
+
+        // Tự động khởi tạo Stored Procedure sp_GetRevenueByCashier nếu chưa có (TC34)
+        string createSpSql = @"
+CREATE OR ALTER PROCEDURE sp_GetRevenueByCashier
+    @CashierUsername NVARCHAR(100) = NULL,
+    @FromDate DATETIME2 = NULL,
+    @ToDate DATETIME2 = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        COALESCE(NULLIF(@CashierUsername, ''), N'Tất cả') AS CashierUsername,
+        (SELECT TOP 1 FullName FROM Users WHERE (@CashierUsername IS NOT NULL AND @CashierUsername <> '' AND Username = @CashierUsername)) AS CashierFullName,
+        COUNT(o.OrderId) AS TotalOrders,
+        ISNULL(SUM(o.TotalAmount), 0) AS TotalRevenue,
+        @FromDate AS FromDate,
+        @ToDate AS ToDate
+    FROM Orders o
+    LEFT JOIN Users u ON o.UserId = u.UserId
+    WHERE (@CashierUsername IS NULL OR @CashierUsername = '' OR u.Username = @CashierUsername)
+      AND (@FromDate IS NULL OR o.OrderDate >= @FromDate)
+      AND (@ToDate IS NULL OR o.OrderDate <= @ToDate)
+      AND (o.Status <> 'Cancelled');
+END;";
+        db.Database.ExecuteSqlRaw(createSpSql);
     }
     catch (Exception ex)
     {

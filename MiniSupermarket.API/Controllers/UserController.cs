@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MiniSupermarket.API.Data;
@@ -6,6 +7,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MiniSupermarket.API.Controllers
 {
+    [Authorize(Roles = "Admin")]
     [Route("api/users")]
     [ApiController]
     public class UsersController : ControllerBase

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MiniSupermarket.API.Data;
@@ -5,6 +6,7 @@ using MiniSupermarket.API.Models;
 
 namespace MiniSupermarket.API.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class CustomersController : ControllerBase
@@ -152,6 +154,7 @@ namespace MiniSupermarket.API.Controllers
 
         // 6. POST: Thêm mới khách hàng
         [HttpPost]
+        [Authorize(Roles = "Admin,Cashier")]
         public async Task<IActionResult> Create([FromBody] CustomerRequest request)
         {
             if (!ModelState.IsValid)
@@ -227,6 +230,7 @@ namespace MiniSupermarket.API.Controllers
 
         // 8. DELETE: Xóa khách hàng
         [HttpDelete("{id:int}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var customer = await _context.Customers.FindAsync(id);

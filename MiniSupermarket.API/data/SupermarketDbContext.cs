@@ -19,12 +19,30 @@ namespace MiniSupermarket.API.Data
         public DbSet<Product> Products { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Order> Orders { get; set; }
-        public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<OrderDetail> OrderItems { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Category>()
+                .HasMany(c => c.Products)
+                .WithOne(p => p.Category)
+                .HasForeignKey(p => p.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Order>()
+                .HasMany(o => o.OrderItems)
+                .WithOne(d => d.Order)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<OrderDetail>()
+                .HasOne(d => d.Product)
+                .WithMany()
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // ==========================================
             // 1. SEED DATA FOR ROLES (Vai trò hệ thống POS)
@@ -138,11 +156,11 @@ namespace MiniSupermarket.API.Data
             // ==========================================
             // 9. SEED DATA FOR ORDERITEMS (Chi tiết đơn hàng)
             // ==========================================
-            modelBuilder.Entity<OrderItem>().HasData(
-                new OrderItem { OrderItemId = 1, OrderId = 1, ProductId = 1, Quantity = 1, UnitPrice = 12000 },
-                new OrderItem { OrderItemId = 2, OrderId = 1, ProductId = 2, Quantity = 1, UnitPrice = 20000 },
-                new OrderItem { OrderItemId = 3, OrderId = 2, ProductId = 5, Quantity = 1, UnitPrice = 45000 },
-                new OrderItem { OrderItemId = 4, OrderId = 2, ProductId = 13, Quantity = 2, UnitPrice = 21000 }
+            modelBuilder.Entity<OrderDetail>().HasData(
+                new OrderDetail { OrderDetailId = 1, OrderId = 1, ProductId = 1, Quantity = 1, UnitPrice = 12000 },
+                new OrderDetail { OrderDetailId = 2, OrderId = 1, ProductId = 2, Quantity = 1, UnitPrice = 20000 },
+                new OrderDetail { OrderDetailId = 3, OrderId = 2, ProductId = 5, Quantity = 1, UnitPrice = 45000 },
+                new OrderDetail { OrderDetailId = 4, OrderId = 2, ProductId = 13, Quantity = 2, UnitPrice = 21000 }
             );
         }
     }

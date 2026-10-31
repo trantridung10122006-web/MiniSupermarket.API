@@ -31,6 +31,7 @@ namespace MiniSupermarket.WinForms
         private TextBox txtBarcode;
         private TextBox txtCashReceived;
         private TextBox txtCustomerPhone;
+        private NumericUpDown nudRedeemPoints;
         private TextBox txtProductSearch;
         private Button btnCheckout;
         private Button btnPayCash;
@@ -339,7 +340,7 @@ namespace MiniSupermarket.WinForms
 
             // 1. Khách hàng
             var pnlCustomer = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
-            var lblCustHeader = MakeCaptionLabel("KHÁCH HÀNG (TÊN / SĐT)");
+            var lblCustHeader = MakeCaptionLabel("KHÁCH HÀNG (TÊN / SĐT) - ĐIỂM DÙNG");
 
             var pnlCustInput = new Panel { Dock = DockStyle.Top, Height = 32 };
             btnFindCustomer = MakeButton("Tìm", PrimaryColor, new Font("Segoe UI", 9.5F, FontStyle.Bold));
@@ -357,7 +358,19 @@ namespace MiniSupermarket.WinForms
             };
             txtCustomerPhone.KeyDown += txtCustomerPhone_KeyDown;
 
+            nudRedeemPoints = new NumericUpDown
+            {
+                Dock = DockStyle.Right,
+                Width = 62,
+                Minimum = 0,
+                Maximum = 100000,
+                TextAlign = HorizontalAlignment.Center,
+                ThousandsSeparator = false
+            };
+            nudRedeemPoints.ValueChanged += (s, e) => UpdateCartDisplay();
+
             pnlCustInput.Controls.Add(txtCustomerPhone);
+            pnlCustInput.Controls.Add(nudRedeemPoints);
             pnlCustInput.Controls.Add(spacerCust);
             pnlCustInput.Controls.Add(btnFindCustomer);
 
@@ -720,8 +733,11 @@ namespace MiniSupermarket.WinForms
             dgvProducts.CellFormatting += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
-                if (dgvProducts.Rows[e.RowIndex].DataBoundItem is ProductDto p && p.StockQuantity <= 0)
-                    e.CellStyle.ForeColor = DangerColor;
+                if (dgvProducts.Rows[e.RowIndex].DataBoundItem is ProductDto p && p.StockQuantity <= 10)
+                {
+                    e.CellStyle.BackColor = p.StockQuantity <= 0 ? Color.LightCoral : Color.Moccasin;
+                    e.CellStyle.ForeColor = p.StockQuantity <= 0 ? DangerColor : Color.DarkOrange;
+                }
             };
         }
 
@@ -921,7 +937,9 @@ namespace MiniSupermarket.WinForms
         {
             _cartSource.ResetBindings(false);
 
-            decimal totalAmount = _cart.Sum(i => i.TotalPrice);
+            decimal cartAmount = _cart.Sum(i => i.TotalPrice);
+            decimal discountAmount = (nudRedeemPoints?.Value ?? 0) * 1000m;
+            decimal totalAmount = Math.Max(0m, cartAmount - discountAmount);
             lblTotalAmount.Text = totalAmount.ToString("N0") + " đ";
 
             if (_paymentMethod == "Transfer")
@@ -934,7 +952,7 @@ namespace MiniSupermarket.WinForms
 
         private void CalculateChange()
         {
-            decimal totalAmount = _cart.Sum(i => i.TotalPrice);
+            decimal totalAmount = Math.Max(0m, _cart.Sum(i => i.TotalPrice) - (nudRedeemPoints?.Value ?? 0) * 1000m);
             decimal cashReceived = 0;
             decimal.TryParse(txtCashReceived.Text.Replace(",", "").Replace("đ", "").Trim(), out cashReceived);
 
@@ -1027,7 +1045,7 @@ namespace MiniSupermarket.WinForms
                 return;
             }
 
-            decimal totalAmount = _cart.Sum(i => i.TotalPrice);
+            decimal totalAmount = Math.Max(0m, _cart.Sum(i => i.TotalPrice) - (nudRedeemPoints?.Value ?? 0) * 1000m);
             decimal cashReceived = 0;
             decimal.TryParse(txtCashReceived.Text.Replace(",", "").Replace("đ", "").Trim(), out cashReceived);
 
@@ -1061,6 +1079,7 @@ namespace MiniSupermarket.WinForms
                     CustomerPhone = _selectedCustomer?.PhoneNumber ?? txtCustomerPhone.Text.Trim(),
                     PaymentMethod = _paymentMethod,
                     TotalAmount = totalAmount,
+                    RedeemPoints = (int)(nudRedeemPoints?.Value ?? 0),
                     CashReceived = cashReceived,
                     ChangeAmount = change,
                     Items = _cart.Select(i => new {
@@ -1096,6 +1115,7 @@ namespace MiniSupermarket.WinForms
 
                     txtCashReceived.Clear();
                     txtCustomerPhone.Clear();
+                    if (nudRedeemPoints != null) nudRedeemPoints.Value = 0;
                     _selectedCustomer = null;
                     lblCustomerName.Text = "Khách vãng lai";
                     lblCustomerName.ForeColor = Color.FromArgb(55, 71, 79);
