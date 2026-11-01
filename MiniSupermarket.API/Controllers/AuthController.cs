@@ -10,6 +10,7 @@ namespace MiniSupermarket.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public class AuthController : ControllerBase
     {
         private readonly IConfiguration _configuration;
@@ -89,7 +90,13 @@ namespace MiniSupermarket.API.Controllers
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             // Lấy khóa bí mật từ appsettings.json
-            var key = Encoding.ASCII.GetBytes(_configuration["JwtSettings:Secret"] ?? "SupermarketSecretKeyDoAnMonHoc2026SecureString!!");
+            var configuredSecret = _configuration["JwtSettings:Secret"];
+            if (string.IsNullOrWhiteSpace(configuredSecret))
+            {
+                throw new InvalidOperationException("JwtSettings:Secret must be configured.");
+            }
+
+            var key = Encoding.UTF8.GetBytes(configuredSecret);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {

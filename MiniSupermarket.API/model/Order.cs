@@ -30,6 +30,6 @@ namespace MiniSupermarket.API.Models
         [ForeignKey("UserId")]
         public virtual User? User { get; set; }
 
-        public virtual ICollection<OrderItem>? OrderItems { get; set; }
+        public virtual ICollection<OrderDetail>? OrderItems { get; set; }
     }
 }

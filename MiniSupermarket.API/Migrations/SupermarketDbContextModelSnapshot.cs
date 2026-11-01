@@ -438,13 +438,13 @@ namespace MiniSupermarket.API.Migrations
                         });
                 });
 
-            modelBuilder.Entity("MiniSupermarket.API.Models.OrderItem", b =>
+            modelBuilder.Entity("MiniSupermarket.API.Models.OrderDetail", b =>
                 {
-                    b.Property<int>("OrderItemId")
+                    b.Property<int>("OrderDetailId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OrderItemId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("OrderDetailId"));
 
                     b.Property<int>("OrderId")
                         .HasColumnType("int");
@@ -458,7 +458,7 @@ namespace MiniSupermarket.API.Migrations
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.HasKey("OrderItemId");
+                    b.HasKey("OrderDetailId");
 
                     b.HasIndex("OrderId");
 
@@ -469,7 +469,7 @@ namespace MiniSupermarket.API.Migrations
                     b.HasData(
                         new
                         {
-                            OrderItemId = 1,
+                            OrderDetailId = 1,
                             OrderId = 1,
                             ProductId = 1,
                             Quantity = 1,
@@ -477,7 +477,7 @@ namespace MiniSupermarket.API.Migrations
                         },
                         new
                         {
-                            OrderItemId = 2,
+                            OrderDetailId = 2,
                             OrderId = 1,
                             ProductId = 2,
                             Quantity = 1,
@@ -485,7 +485,7 @@ namespace MiniSupermarket.API.Migrations
                         },
                         new
                         {
-                            OrderItemId = 3,
+                            OrderDetailId = 3,
                             OrderId = 2,
                             ProductId = 5,
                             Quantity = 1,
@@ -493,7 +493,7 @@ namespace MiniSupermarket.API.Migrations
                         },
                         new
                         {
-                            OrderItemId = 4,
+                            OrderDetailId = 4,
                             OrderId = 2,
                             ProductId = 13,
                             Quantity = 2,
@@ -510,7 +510,8 @@ namespace MiniSupermarket.API.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ProductId"));
 
                     b.Property<string>("Barcode")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int?>("BrandId")
                         .HasColumnType("int");
@@ -927,7 +928,7 @@ namespace MiniSupermarket.API.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("MiniSupermarket.API.Models.OrderItem", b =>
+            modelBuilder.Entity("MiniSupermarket.API.Models.OrderDetail", b =>
                 {
                     b.HasOne("MiniSupermarket.API.Models.Order", "Order")
                         .WithMany("OrderItems")
@@ -938,7 +939,7 @@ namespace MiniSupermarket.API.Migrations
                     b.HasOne("MiniSupermarket.API.Models.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Order");
@@ -955,7 +956,7 @@ namespace MiniSupermarket.API.Migrations
                     b.HasOne("MiniSupermarket.API.Models.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MiniSupermarket.API.Models.Supplier", "Supplier")

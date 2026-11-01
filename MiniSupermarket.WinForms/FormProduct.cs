@@ -36,12 +36,41 @@ namespace MiniSupermarket.WinForms
 
             Load += FormProductManagement_Load;
             dgvProducts.CellClick += dgvProducts_CellClick;
+            dgvProducts.CellFormatting += dgvProducts_CellFormatting;
             btnAdd.Click += btnAdd_Click;
             btnUpdate.Click += btnUpdate_Click;
             btnDelete.Click += btnDelete_Click;
             btnClear.Click += (s, e) => ClearInputs();
             btnRefresh.Click += async (s, e) => await RefreshDataAsync();
             WinFormsTheme.Apply(this);
+        }
+
+        private void dgvProducts_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || dgvProducts.Columns["StockQuantity"] == null)
+                return;
+
+            object stockValue = dgvProducts.Rows[e.RowIndex].Cells["StockQuantity"].Value;
+            if (!int.TryParse(Convert.ToString(stockValue), out int stockQuantity))
+                return;
+
+            DataGridViewRow row = dgvProducts.Rows[e.RowIndex];
+
+            if (stockQuantity <= 0)
+            {
+                row.DefaultCellStyle.BackColor = Color.LightCoral;
+                row.DefaultCellStyle.SelectionBackColor = Color.IndianRed;
+            }
+            else if (stockQuantity <= 10)
+            {
+                row.DefaultCellStyle.BackColor = Color.Moccasin;
+                row.DefaultCellStyle.SelectionBackColor = Color.DarkOrange;
+            }
+            else
+            {
+                row.DefaultCellStyle.BackColor = Color.White;
+                row.DefaultCellStyle.SelectionBackColor = Color.FromArgb(178, 223, 219);
+            }
         }
 
         private async void FormProductManagement_Load(object sender, EventArgs e)
